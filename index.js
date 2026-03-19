@@ -6,6 +6,7 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const LOCK_FILE = path.join(__dirname, 'job.lock');
+const LOCK_TTL = 10 * 60 * 1000;
 
 const agent = new https.Agent({ rejectUnauthorized: false });
 
@@ -26,11 +27,34 @@ async function writeLog(message) {
 
 async function acquireLock() {
     try {
-        await fs.access(LOCK_FILE);
-        return false;
-    } catch {
-        await fs.writeFile(LOCK_FILE, 'locked');
+        await fs.writeFile(
+            LOCK_FILE,
+            JSON.stringify({
+                pid: process.pid,
+                timestamp: Date.now()
+            }),
+            { flag: 'wx' }
+        );
         return true;
+    } catch (err) {
+        try {
+            const data = await fs.readFile(LOCK_FILE, 'utf-8');
+            const lock = JSON.parse(data);
+
+            const isExpired = (Date.now() - lock.timestamp) > LOCK_TTL;
+
+            if (isExpired) {
+                await writeLog(`Lock zombie detectado (PID ${lock.pid}), eliminando...`);
+                await fs.unlink(LOCK_FILE);
+                return await acquireLock();
+            }
+
+            return false;
+        } catch (e) {
+            await writeLog('Lock corrupto detectado, eliminando...');
+            await fs.unlink(LOCK_FILE);
+            return await acquireLock();
+        }
     }
 }
 
@@ -56,7 +80,7 @@ async function automationMerchandiseEntry() {
 
     if (!hasLock) {
         console.log('Ya hay una ejecución en curso. Saliendo...');
-        return process.exit(0);
+        return;
     }
 
     try {
@@ -131,21 +155,20 @@ async function automationMerchandiseEntry() {
         for (const entry of grouped) {
             try {
                 const itemsHTML = entry.items.map(item => `
-          <tr>
-            <td>${item.Numero}</td>
-            <td>${item.Descripcion}</td>
-            <td>${item.Cantidad}</td>
-            <td>${item.Pendiente}</td>
-          </tr>
-        `).join('');
+                    <tr>
+                        <td>${item.Numero}</td>
+                        <td>${item.Descripcion}</td>
+                        <td>${item.Cantidad}</td>
+                        <td>${item.Pendiente}</td>
+                    </tr>
+                `).join('');
 
                 await withRetry(() =>
                     transporter.sendMail({
                         from: process.env.EMAIL_USER,
                         to: recipients.join(','),
                         subject: `Entrada de mercancía ${entry.DocEntry_Entrada_de_Mercancias} ${entry.Nº_Documento_de_Compras} - Hogar`,
-                        html: `                 
-                         <html>
+                        html: `<html>
 <head>
     <meta charset="utf-8">
 </head>
@@ -244,22 +267,24 @@ async function automationMerchandiseEntry() {
                         }
                     )
                 );
+
                 await writeLog(`OK DocEntry ${entry.DocEntry_Entrada_de_Mercancias}`);
             } catch (err) {
                 await writeLog(`ERROR DocEntry ${entry.DocEntry_Entrada_de_Mercancias}: ${err.message}`);
             }
         }
-
         await writeLog('Fin OK');
-        process.exit(0);
-
     } catch (err) {
         await writeLog(`ERROR GENERAL: ${err.message}`);
-        process.exit(1);
+        throw err;
     } finally {
         await releaseLock();
     }
 }
+
+automationMerchandiseEntry()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1));
 
 process.on('unhandledRejection', async (err) => {
     await writeLog(`UNHANDLED: ${err.message}`);
@@ -270,5 +295,3 @@ process.on('uncaughtException', async (err) => {
     await writeLog(`UNCAUGHT: ${err.message}`);
     process.exit(1);
 });
-
-automationMerchandiseEntry()

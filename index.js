@@ -282,16 +282,27 @@ async function automationMerchandiseEntry() {
     }
 }
 
-automationMerchandiseEntry()
-    .then(() => process.exit(0))
-    .catch(() => process.exit(1));
+async function runContinuously() {
+    while (true) {
+        try {
+            console.log('Iniciando ciclo de ejecución...');
+            await automationMerchandiseEntry();
+        } catch (err) {
+            console.error('Error en el ciclo:', err.message);
+        }
+        
+        const minutes = 10;
+        console.log(`Esperando ${minutes} minutos para la próxima ejecución...`);
+        await new Promise(resolve => setTimeout(resolve, minutes * 60 * 1000));
+    }
+}
+
+runContinuously();
 
 process.on('unhandledRejection', async (err) => {
     await writeLog(`UNHANDLED: ${err.message}`);
-    process.exit(1);
 });
 
 process.on('uncaughtException', async (err) => {
     await writeLog(`UNCAUGHT: ${err.message}`);
-    process.exit(1);
 });

@@ -1,24 +1,26 @@
 {
-  "name": "automation_hogar_merchandise_entry",
+  "name": "automation-merchandise-entry",
   "version": "1.0.0",
+  "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "pm2 start ecosystem.config.js",
-    "stop": "pm2 stop ecosystem.config.js",
-    "restart": "pm2 restart ecosystem.config.js",
-    "logs": "pm2 logs automation-merchandise"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [
-    "automation",
-    "sap",
-    "email"
-  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuhmak/automation-merchandise-entry.git"
+  },
+  "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Automatización de entrada de mercancía Hogar",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/yuhmak/automation-merchandise-entry/issues"
+  },
+  "homepage": "https://github.com/yuhmak/automation-merchandise-entry#readme",
   "dependencies": {
-    "axios": "^1.10.0",
-    "dotenv": "^16.5.0",
-    "nodemailer": "^7.0.3"
+    "axios": "^1.19.0",
+    "dotenv": "^17.4.2",
+    "nodemailer": "^9.0.3"
   }
 }
